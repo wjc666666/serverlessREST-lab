@@ -70,8 +70,8 @@ export class RestAPIStack extends cdk.Stack {
     });
 
     // Permissions 
-    moviesTable.grantReadData(getMovieByIdFn)
-    moviesTable.grantReadData(getAllMoviesFn)
+    moviesTable.grantReadData(getMovieByIdFn);
+    moviesTable.grantReadData(getAllMoviesFn);
 
     // REST API 
     const api = new apig.RestApi(this, "RestAPI", {
@@ -93,12 +93,15 @@ export class RestAPIStack extends cdk.Stack {
       "GET",
       new apig.LambdaIntegration(getAllMoviesFn, { proxy: true })
     );
+
     // Detail movie endpoint
     const specificMovieEndpoint = moviesEndpoint.addResource("{movieId}");
     specificMovieEndpoint.addMethod(
       "GET",
       new apig.LambdaIntegration(getMovieByIdFn, { proxy: true })
     );
+
+    // AddMovie Function (POST /movies)
     const newMovieFn = new lambdanode.NodejsFunction(this, "AddMovieFn", {
       architecture: lambda.Architecture.ARM_64,
       runtime: lambda.Runtime.NODEJS_20_X,
@@ -110,10 +113,30 @@ export class RestAPIStack extends cdk.Stack {
         REGION: "eu-west-1",
       },
     });
-        moviesTable.grantReadWriteData(newMovieFn)
-        moviesEndpoint.addMethod(
-          "POST",
-          new apig.LambdaIntegration(newMovieFn, { proxy: true })
-        );
+
+    moviesTable.grantReadWriteData(newMovieFn);
+    moviesEndpoint.addMethod(
+      "POST",
+      new apig.LambdaIntegration(newMovieFn, { proxy: true })
+    );
+
+    // DeleteMovie Function (DELETE /movies/{movieId})
+    const deleteMovieFn = new lambdanode.NodejsFunction(this, "DeleteMovieFn", {
+      architecture: lambda.Architecture.ARM_64,
+      runtime: lambda.Runtime.NODEJS_20_X,
+      entry: `${__dirname}/../lambdas/deleteMovie.ts`,
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 128,
+      environment: {
+        TABLE_NAME: moviesTable.tableName,
+        REGION: "eu-west-1",
+      },
+    });
+
+    moviesTable.grantReadWriteData(deleteMovieFn);
+    specificMovieEndpoint.addMethod(
+      "DELETE",
+      new apig.LambdaIntegration(deleteMovieFn, { proxy: true })
+    );
   }
 }
