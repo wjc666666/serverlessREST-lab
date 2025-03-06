@@ -1,63 +1,27 @@
-import { Handler } from "aws-lambda";
-
+import { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, ScanCommand } from "@aws-sdk/lib-dynamodb";
 
-const ddbDocClient = createDDbDocClient();
+const ddbClient = new DynamoDBClient({ region: process.env.REGION });
+const docClient = DynamoDBDocumentClient.from(ddbClient);
 
-export const handler: Handler = async (event, context) => {
+export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
   try {
-    // Print Event
-    console.log("Event: ", event);
-
-    const commandOutput = await ddbDocClient.send(
+    const result = await docClient.send(
       new ScanCommand({
         TableName: process.env.TABLE_NAME,
       })
     );
-    if (!commandOutput.Items) {
-      return {
-        statusCode: 404,
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ Message: "Invalid movie Id" }),
-      };
-    }
-    const body = {
-      data: commandOutput.Items,
-    };
 
-    // Return Response
     return {
       statusCode: 200,
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(body),
+      body: JSON.stringify(result.Items || []),
     };
-  } catch (error: any) {
-    console.log(JSON.stringify(error));
+  } catch (error) {
+    console.error(error);
     return {
       statusCode: 500,
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ error }),
+      body: JSON.stringify({ message: "Internal server error" }),
     };
   }
 };
-
-function createDDbDocClient() {
-  const ddbClient = new DynamoDBClient({ region: process.env.REGION });
-  const marshallOptions = {
-    convertEmptyValues: true,
-    removeUndefinedValues: true,
-    convertClassInstanceToMap: true,
-  };
-  const unmarshallOptions = {
-    wrapNumbers: false,
-  };
-  const translateConfig = { marshallOptions, unmarshallOptions };
-  return DynamoDBDocumentClient.from(ddbClient, translateConfig);
-}
